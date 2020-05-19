@@ -17,16 +17,16 @@ package com.amazon.opendistroforelasticsearch.alerting.alerts
 
 import com.amazon.opendistroforelasticsearch.alerting.alerts.AlertIndices.Companion.ALERT_INDEX
 import com.amazon.opendistroforelasticsearch.alerting.alerts.AlertIndices.Companion.HISTORY_WRITE_INDEX
+import com.amazon.opendistroforelasticsearch.commons.RestClient
 import com.amazon.opendistroforelasticsearch.alerting.model.Alert
 import com.amazon.opendistroforelasticsearch.alerting.model.Monitor
-import com.amazon.opendistroforelasticsearch.alerting.elasticapi.suspendUntil
 import org.elasticsearch.action.bulk.BulkRequest
 import org.elasticsearch.action.bulk.BulkResponse
 import org.elasticsearch.action.delete.DeleteRequest
 import org.elasticsearch.action.index.IndexRequest
 import org.elasticsearch.action.search.SearchRequest
 import org.elasticsearch.action.search.SearchResponse
-import org.elasticsearch.client.Client
+import org.elasticsearch.client.RequestOptions
 import org.elasticsearch.common.bytes.BytesReference
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler
 import org.elasticsearch.common.xcontent.NamedXContentRegistry
@@ -52,7 +52,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder
  * 3. Delete alerts from [ALERT_INDEX]
  * 4. Schedule a retry if there were any failures
  */
-suspend fun moveAlerts(client: Client, monitorId: String, monitor: Monitor? = null) {
+suspend fun moveAlerts(client: RestClient, monitorId: String, monitor: Monitor? = null) {
     val boolQuery = QueryBuilders.boolQuery()
         .filter(QueryBuilders.termQuery(Alert.MONITOR_ID_FIELD, monitorId))
 
@@ -67,7 +67,9 @@ suspend fun moveAlerts(client: Client, monitorId: String, monitor: Monitor? = nu
     val activeAlertsRequest = SearchRequest(AlertIndices.ALERT_INDEX)
         .routing(monitorId)
         .source(activeAlertsQuery)
-    val response: SearchResponse = client.suspendUntil { search(activeAlertsRequest, it) }
+    //val response: SearchResponse = client.suspendUntil { search(activeAlertsRequest, it) }
+    val response: SearchResponse = client.getClient().search(activeAlertsRequest,
+            RequestOptions.DEFAULT.toBuilder().build())
 
     // If no alerts are found, simply return
     if (response.hits.totalHits?.value == 0L) return
@@ -82,7 +84,8 @@ suspend fun moveAlerts(client: Client, monitorId: String, monitor: Monitor? = nu
             .id(hit.id)
     }
     val copyRequest = BulkRequest().add(indexRequests)
-    val copyResponse: BulkResponse = client.suspendUntil { bulk(copyRequest, it) }
+    val copyResponse: BulkResponse = client.getClient().bulk(copyRequest,
+            RequestOptions.DEFAULT.toBuilder().build())
 
     val deleteRequests = copyResponse.items.filterNot { it.isFailed }.map {
         DeleteRequest(AlertIndices.ALERT_INDEX, it.id)
@@ -90,7 +93,8 @@ suspend fun moveAlerts(client: Client, monitorId: String, monitor: Monitor? = nu
             .version(it.version)
             .versionType(VersionType.EXTERNAL_GTE)
     }
-    val deleteResponse: BulkResponse = client.suspendUntil { bulk(BulkRequest().add(deleteRequests), it) }
+    val deleteResponse: BulkResponse = client.getClient().bulk(BulkRequest().add(deleteRequests),
+            RequestOptions.DEFAULT.toBuilder().build())
 
     if (copyResponse.hasFailures()) {
         val retryCause = copyResponse.items.filter { it.isFailed }

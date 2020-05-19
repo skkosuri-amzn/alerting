@@ -18,6 +18,7 @@ package com.amazon.opendistroforelasticsearch.alerting
 import com.amazon.opendistroforelasticsearch.alerting.alerts.AlertError
 import com.amazon.opendistroforelasticsearch.alerting.alerts.AlertIndices
 import com.amazon.opendistroforelasticsearch.alerting.alerts.moveAlerts
+import com.amazon.opendistroforelasticsearch.commons.RestClient
 import com.amazon.opendistroforelasticsearch.alerting.core.JobRunner
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob.Companion.SCHEDULED_JOBS_INDEX
@@ -25,7 +26,6 @@ import com.amazon.opendistroforelasticsearch.alerting.core.model.SearchInput
 import com.amazon.opendistroforelasticsearch.alerting.elasticapi.convertToMap
 import com.amazon.opendistroforelasticsearch.alerting.elasticapi.firstFailureOrNull
 import com.amazon.opendistroforelasticsearch.alerting.elasticapi.retry
-import com.amazon.opendistroforelasticsearch.alerting.elasticapi.suspendUntil
 import com.amazon.opendistroforelasticsearch.alerting.model.ActionExecutionResult
 import com.amazon.opendistroforelasticsearch.alerting.model.ActionRunResult
 import com.amazon.opendistroforelasticsearch.alerting.model.Alert
@@ -62,14 +62,11 @@ import org.elasticsearch.ExceptionsHelper
 import org.elasticsearch.action.DocWriteRequest
 import org.elasticsearch.action.bulk.BackoffPolicy
 import org.elasticsearch.action.bulk.BulkRequest
-import org.elasticsearch.action.bulk.BulkResponse
 import org.elasticsearch.action.delete.DeleteRequest
 import org.elasticsearch.action.get.GetRequest
-import org.elasticsearch.action.get.GetResponse
 import org.elasticsearch.action.index.IndexRequest
 import org.elasticsearch.action.search.SearchRequest
-import org.elasticsearch.action.search.SearchResponse
-import org.elasticsearch.client.Client
+import org.elasticsearch.client.RequestOptions
 import org.elasticsearch.cluster.service.ClusterService
 import org.elasticsearch.common.Strings
 import org.elasticsearch.common.bytes.BytesReference
@@ -96,7 +93,6 @@ import kotlin.coroutines.CoroutineContext
 
 class MonitorRunner(
     settings: Settings,
-    private val client: Client,
     private val threadPool: ThreadPool,
     private val scriptService: ScriptService,
     private val xContentRegistry: NamedXContentRegistry,
@@ -105,6 +101,7 @@ class MonitorRunner(
 ) : JobRunner, CoroutineScope, AbstractLifecycleComponent() {
 
     private val logger = LogManager.getLogger(MonitorRunner::class.java)
+    private val esClient = RestClient(settings);
 
     private lateinit var runnerSupervisor: Job
     override val coroutineContext: CoroutineContext
@@ -143,7 +140,7 @@ class MonitorRunner(
             try {
                 moveAlertsRetryPolicy.retry(logger) {
                     if (alertIndices.isInitialized()) {
-                        moveAlerts(client, job.id, job)
+                        moveAlerts(esClient, job.id, job)
                     }
                 }
             } catch (e: Exception) {
@@ -157,7 +154,7 @@ class MonitorRunner(
             try {
                 moveAlertsRetryPolicy.retry(logger) {
                     if (alertIndices.isInitialized()) {
-                        moveAlerts(client, jobId, null)
+                        moveAlerts(esClient, jobId, null)
                     }
                 }
             } catch (e: Exception) {
@@ -175,6 +172,7 @@ class MonitorRunner(
     }
 
     suspend fun runMonitor(monitor: Monitor, periodStart: Instant, periodEnd: Instant, dryrun: Boolean = false): MonitorRunResult {
+        logger.info("Running monitor: ${monitor.name}")
         if (periodStart == periodEnd) {
             logger.warn("Start and end time are the same: $periodStart. This monitor will probably only run once.")
         }
@@ -289,7 +287,8 @@ class MonitorRunner(
                         XContentType.JSON.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, searchSource).use {
                             searchRequest.source(SearchSourceBuilder.fromXContent(it))
                         }
-                        val searchResponse: SearchResponse = client.suspendUntil { client.search(searchRequest, it) }
+                        val searchResponse = esClient.getClient().search(searchRequest,
+                                RequestOptions.DEFAULT.toBuilder().build())
                         results += searchResponse.convertToMap()
                     }
                     else -> {
@@ -321,7 +320,8 @@ class MonitorRunner(
         val request = SearchRequest(AlertIndices.ALERT_INDEX)
                 .routing(monitor.id)
                 .source(alertQuery(monitor))
-        val response: SearchResponse = client.suspendUntil { client.search(request, it) }
+
+        val response = esClient.getClient().search(request, RequestOptions.DEFAULT.toBuilder().build())
         if (response.status() != RestStatus.OK) {
             throw (response.firstFailureOrNull()?.cause ?: RuntimeException("Unknown error loading alerts"))
         }
@@ -388,7 +388,9 @@ class MonitorRunner(
         // Retry Bulk requests if there was any 429 response
         retryPolicy.retry(logger, listOf(RestStatus.TOO_MANY_REQUESTS)) {
             val bulkRequest = BulkRequest().add(requestsToRetry)
-            val bulkResponse: BulkResponse = client.suspendUntil { client.bulk(bulkRequest, it) }
+            val bulkResponse = esClient.getClient().bulk(bulkRequest, RequestOptions.DEFAULT.toBuilder().build())
+
+
             val failedResponses = (bulkResponse.items ?: arrayOf()).filter { it.isFailed }
             requestsToRetry = failedResponses.filter { it.status() == RestStatus.TOO_MANY_REQUESTS }
                 .map { bulkRequest.requests()[it.itemId] as IndexRequest }
@@ -450,7 +452,8 @@ class MonitorRunner(
 
     private suspend fun getDestinationInfo(destinationId: String): Destination {
         val getRequest = GetRequest(SCHEDULED_JOBS_INDEX, destinationId).routing(destinationId)
-        val getResponse: GetResponse = client.suspendUntil { client.get(getRequest, it) }
+        val getResponse = esClient.getClient().get(getRequest, RequestOptions.DEFAULT.toBuilder().build())
+
         if (!getResponse.isExists || getResponse.isSourceEmpty) {
             throw IllegalStateException("Destination document with id $destinationId not found or source is empty")
         }
