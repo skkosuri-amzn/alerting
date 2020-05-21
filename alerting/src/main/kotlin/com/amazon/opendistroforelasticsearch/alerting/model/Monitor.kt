@@ -48,6 +48,7 @@ data class Monitor(
     override val schedule: Schedule,
     override val lastUpdateTime: Instant,
     override val enabledTime: Instant?,
+    val createdBy: String,
     val schemaVersion: Int = NO_SCHEMA_VERSION,
     val inputs: List<Input>,
     val triggers: List<Trigger>,
@@ -86,6 +87,7 @@ data class Monitor(
         builder.field(TYPE_FIELD, type)
                 .field(SCHEMA_VERSION_FIELD, schemaVersion)
                 .field(NAME_FIELD, name)
+                .field(USER_NAME_FIELD, createdBy)
                 .field(ENABLED_FIELD, enabled)
                 .optionalTimeField(ENABLED_TIME_FIELD, enabledTime)
                 .field(SCHEDULE_FIELD, schedule)
@@ -104,6 +106,7 @@ data class Monitor(
         const val TYPE_FIELD = "type"
         const val SCHEMA_VERSION_FIELD = "schema_version"
         const val NAME_FIELD = "name"
+        const val USER_NAME_FIELD = "createdBy"
         const val ENABLED_FIELD = "enabled"
         const val SCHEDULE_FIELD = "schedule"
         const val TRIGGERS_FIELD = "triggers"
@@ -125,6 +128,7 @@ data class Monitor(
         @Throws(IOException::class)
         fun parse(xcp: XContentParser, id: String = NO_ID, version: Long = NO_VERSION): Monitor {
             lateinit var name: String
+            lateinit var createdBy: String
             lateinit var schedule: Schedule
             var lastUpdateTime: Instant? = null
             var enabledTime: Instant? = null
@@ -142,6 +146,7 @@ data class Monitor(
                 when (fieldName) {
                     SCHEMA_VERSION_FIELD -> schemaVersion = xcp.intValue()
                     NAME_FIELD -> name = xcp.text()
+                    USER_NAME_FIELD -> createdBy = xcp.text()
                     ENABLED_FIELD -> enabled = xcp.booleanValue()
                     SCHEDULE_FIELD -> schedule = Schedule.parse(xcp)
                     INPUTS_FIELD -> {
@@ -177,6 +182,7 @@ data class Monitor(
                     requireNotNull(schedule) { "Monitor schedule is null" },
                     lastUpdateTime ?: Instant.now(),
                     enabledTime,
+                    createdBy,
                     schemaVersion,
                     inputs.toList(),
                     triggers.toList(),
