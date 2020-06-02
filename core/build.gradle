@@ -23,7 +23,7 @@ dependencies {
     compile 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.1.1'
     compile "com.cronutils:cron-utils:7.0.5"
     compile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${es_version}"
-    compile files('libs/plugin-commons-1.0-SNAPSHOT.jar')
+    compile files('libs/opendistro-commons-1.0-SNAPSHOT.jar')
 
     testImplementation "org.elasticsearch.test:framework:${es_version}"
     testImplementation "org.jetbrains.kotlin:kotlin-test:${kotlin_version}"

@@ -35,6 +35,7 @@ import com.amazon.opendistroforelasticsearch.alerting.resthandler.RestIndexMonit
 import com.amazon.opendistroforelasticsearch.alerting.resthandler.RestSearchMonitorAction
 import com.amazon.opendistroforelasticsearch.alerting.script.TriggerScript
 import com.amazon.opendistroforelasticsearch.alerting.settings.AlertingSettings
+import com.amazon.opendistroforelasticsearch.commons.security.RestClient
 import org.elasticsearch.action.ActionRequest
 import org.elasticsearch.action.ActionResponse
 import org.elasticsearch.client.Client
@@ -102,9 +103,12 @@ internal class AlertingPlugin : PainlessExtension, ActionPlugin, ScriptPlugin, P
         indexNameExpressionResolver: IndexNameExpressionResolver?,
         nodesInCluster: Supplier<DiscoveryNodes>
     ): List<RestHandler> {
+
+        val restClient = RestClient(settings)
+
         return listOf(RestGetMonitorAction(restController),
                 RestDeleteMonitorAction(restController),
-                RestIndexMonitorAction(settings, restController, scheduledJobIndices, clusterService),
+                RestIndexMonitorAction(settings, restController, restClient, scheduledJobIndices, clusterService),
                 RestSearchMonitorAction(restController),
                 RestExecuteMonitorAction(settings, restController, runner),
                 RestAcknowledgeAlertAction(restController),
@@ -134,8 +138,9 @@ internal class AlertingPlugin : PainlessExtension, ActionPlugin, ScriptPlugin, P
     ): Collection<Any> {
         // Need to figure out how to use the Elasticsearch DI classes rather than handwiring things here.
         val settings = environment.settings()
+        val restClient = RestClient(settings)
         alertIndices = AlertIndices(settings, client, threadPool, clusterService)
-        runner = MonitorRunner(settings, threadPool, scriptService, xContentRegistry, alertIndices, clusterService)
+        runner = MonitorRunner(settings, restClient, threadPool, scriptService, xContentRegistry, alertIndices, clusterService)
         scheduledJobIndices = ScheduledJobIndices(client.admin(), clusterService)
         scheduler = JobScheduler(threadPool, runner)
         sweeper = JobSweeper(environment.settings(), client, clusterService, threadPool, xContentRegistry, scheduler, ALERTING_JOB_TYPES)

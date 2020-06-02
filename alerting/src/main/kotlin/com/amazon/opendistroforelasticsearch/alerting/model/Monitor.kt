@@ -128,7 +128,7 @@ data class Monitor(
         @Throws(IOException::class)
         fun parse(xcp: XContentParser, id: String = NO_ID, version: Long = NO_VERSION): Monitor {
             lateinit var name: String
-            lateinit var createdBy: String
+            var createdBy: String = ""
             lateinit var schedule: Schedule
             var lastUpdateTime: Instant? = null
             var enabledTime: Instant? = null
