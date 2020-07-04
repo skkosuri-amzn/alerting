@@ -391,7 +391,7 @@ class MonitorRestApiIT : AlertingRestTestCase() {
 
         assertEquals("Mappings are different", expectedMap, mappingsMap)
     }
-
+// failed
     fun `test delete monitor moves alerts`() {
         client().updateSettings(ScheduledJobSettings.SWEEPER_ENABLED.key, true)
         putAlertMappings()
@@ -434,7 +434,7 @@ class MonitorRestApiIT : AlertingRestTestCase() {
         assertEquals("Alert was not moved to history", 1, historyAlerts.size)
         assertEquals("Alert data incorrect", alert.copy(state = Alert.State.DELETED), historyAlerts.single())
     }
-
+// failed
     fun `test delete trigger moves alerts only for deleted trigger`() {
         client().updateSettings(ScheduledJobSettings.SWEEPER_ENABLED.key, true)
         putAlertMappings()

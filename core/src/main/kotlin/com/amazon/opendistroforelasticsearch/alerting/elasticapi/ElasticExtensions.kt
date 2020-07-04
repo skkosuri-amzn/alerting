@@ -15,6 +15,7 @@
 
 package com.amazon.opendistroforelasticsearch.alerting.elasticapi
 
+import com.amazon.opendistroforelasticsearch.commons.RoleInjectorHelper
 import kotlinx.coroutines.delay
 import org.apache.logging.log4j.Logger
 import org.elasticsearch.ElasticsearchException
@@ -39,6 +40,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import kotlinx.coroutines.ThreadContextElement
+import org.elasticsearch.common.settings.Settings
 import org.elasticsearch.common.util.concurrent.ThreadContext
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext
 import kotlin.coroutines.CoroutineContext
@@ -168,4 +170,22 @@ class ElasticThreadContextElement(private val threadContext: ThreadContext) : Th
     }
 
     override fun updateThreadContext(context: CoroutineContext) = this.context.close()
+}
+
+class RolesInjectorContextElement(val id: String, val settings: Settings, val threadContext: ThreadContext, val roles: String)
+    : ThreadContextElement<Unit> {
+
+    companion object Key : CoroutineContext.Key<RolesInjectorContextElement>
+    override val key: CoroutineContext.Key<*>
+        get() = Key
+
+    var rolesInjectorHelper = RoleInjectorHelper(id, settings, threadContext)
+
+    override fun updateThreadContext(context: CoroutineContext) {
+        rolesInjectorHelper.injectRoles(roles)
+    }
+
+    override fun restoreThreadContext(context: CoroutineContext, oldState: Unit) {
+        rolesInjectorHelper.close()
+    }
 }

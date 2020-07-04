@@ -31,8 +31,7 @@ import com.amazon.opendistroforelasticsearch.alerting.util.IF_SEQ_NO
 import com.amazon.opendistroforelasticsearch.alerting.util.IndexUtils
 import com.amazon.opendistroforelasticsearch.alerting.util._PRIMARY_TERM
 import com.amazon.opendistroforelasticsearch.alerting.util._SEQ_NO
-import com.amazon.opendistroforelasticsearch.commons.security.AuthInfoRequest
-import com.amazon.opendistroforelasticsearch.commons.security.RestClient
+import com.amazon.opendistroforelasticsearch.commons.NodeHelper
 import org.apache.logging.log4j.LogManager
 import org.elasticsearch.action.ActionListener
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse
@@ -80,15 +79,12 @@ private val log = LogManager.getLogger(RestIndexMonitorAction::class.java)
 class RestIndexMonitorAction(
     settings: Settings,
     controller: RestController,
-    restClient: RestClient,
     jobIndices: ScheduledJobIndices,
     clusterService: ClusterService
 ) : BaseRestHandler() {
 
     private var scheduledJobIndices: ScheduledJobIndices
     private val clusterService: ClusterService
-    private val settings = settings
-    private val restClient = restClient
     @Volatile private var maxMonitors = ALERTING_MAX_MONITORS.get(settings)
     @Volatile private var requestTimeout = REQUEST_TIMEOUT.get(settings)
     @Volatile private var indexTimeout = INDEX_TIMEOUT.get(settings)
@@ -112,23 +108,19 @@ class RestIndexMonitorAction(
 
     @Throws(IOException::class)
     override fun prepareRequest(request: RestRequest, client: NodeClient): RestChannelConsumer {
-
-        for ((k, v) in request.headers) {
-            log.info("headers: $k = $v")
-        }
-        val auth = request.headers.get("authorization")
-        val user = restClient.authinfo(AuthInfoRequest(auth)).userName
-        log.info("User name: $user")
-
         val id = request.param("monitorID", Monitor.NO_ID)
         if (request.method() == PUT && Monitor.NO_ID == id) {
             throw IllegalArgumentException("Missing monitor ID")
         }
 
+        // Get roles of the user executing this rest action
+        val rolesInfo = NodeHelper().getRolesInfo(client)
+
         // Validate request by parsing JSON to Monitor
         val xcp = request.contentParser()
         ensureExpectedToken(Token.START_OBJECT, xcp.nextToken(), xcp::getTokenLocation)
-        val monitor = Monitor.parse(xcp, id).copy(lastUpdateTime = Instant.now()).copy(createdBy = user)
+        val monitor = Monitor.parse(xcp, id).copy(lastUpdateTime = Instant.now())
+                .copy(createdBy = rolesInfo.userName).copy(associatedRoles = rolesInfo.rolesString)
         val seqNo = request.paramAsLong(IF_SEQ_NO, SequenceNumbers.UNASSIGNED_SEQ_NO)
         val primaryTerm = request.paramAsLong(IF_PRIMARY_TERM, SequenceNumbers.UNASSIGNED_PRIMARY_TERM)
         val refreshPolicy = if (request.hasParam(REFRESH)) {

@@ -88,12 +88,14 @@ class AlertIndicesIT : AlertingRestTestCase() {
         Thread.sleep(2000)
         assertTrue("Did not find 3 alert indices", getAlertIndices().size >= 3)
     }
-
+    // failed
     fun `test history disabled`() {
         resetHistorySettings()
 
         val trigger1 = randomTrigger(condition = ALWAYS_RUN)
+
         val monitor1 = createMonitor(randomMonitor(triggers = listOf(trigger1)))
+
         executeMonitor(monitor1.id)
 
         // Check if alert is active
@@ -132,13 +134,14 @@ class AlertIndicesIT : AlertingRestTestCase() {
         // Get history entry count again and ensure the new alert was not added
         assertEquals(1, getHistoryDocCount())
     }
-
+// failed
     fun `test short retention period`() {
         resetHistorySettings()
 
         // Create monitor and execute
         val trigger = randomTrigger(condition = ALWAYS_RUN)
         val monitor = createMonitor(randomMonitor(triggers = listOf(trigger)))
+
         executeMonitor(monitor.id)
 
         // Check if alert is active and alert index is created

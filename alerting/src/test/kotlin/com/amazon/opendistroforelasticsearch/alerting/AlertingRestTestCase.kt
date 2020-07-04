@@ -79,6 +79,7 @@ abstract class AlertingRestTestCase : ESRestTestCase() {
     protected fun createMonitor(monitor: Monitor, refresh: Boolean = true): Monitor {
         val response = client().makeRequest("POST", "$ALERTING_BASE_URI?refresh=$refresh", emptyMap(),
                 monitor.toHttpEntity())
+
         assertEquals("Unable to create a new monitor", RestStatus.CREATED, response.restStatus())
 
         val monitorJson = jsonXContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
@@ -114,6 +115,8 @@ abstract class AlertingRestTestCase : ESRestTestCase() {
         return Destination(
                 type = DestinationType.TEST_ACTION,
                 name = "test",
+                createdBy = "testAdmin",
+                associatedRoles = "role_1,role_2",
                 lastUpdateTime = Instant.now(),
                 chime = null,
                 slack = null,

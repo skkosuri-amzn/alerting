@@ -29,6 +29,7 @@ import com.amazon.opendistroforelasticsearch.alerting.util.IF_SEQ_NO
 import com.amazon.opendistroforelasticsearch.alerting.util.IndexUtils
 import com.amazon.opendistroforelasticsearch.alerting.util._PRIMARY_TERM
 import com.amazon.opendistroforelasticsearch.alerting.util._SEQ_NO
+import com.amazon.opendistroforelasticsearch.commons.NodeHelper
 import org.apache.logging.log4j.LogManager
 import org.elasticsearch.action.ActionListener
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse
@@ -91,10 +92,14 @@ class RestIndexDestinationAction(
             throw IllegalArgumentException("Missing destination ID")
         }
 
+        // Get roles of the user executing this rest action
+        val rolesInfo = NodeHelper().getRolesInfo(client)
+
         // Validate request by parsing JSON to Destination
         val xcp = request.contentParser()
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, xcp.nextToken(), xcp::getTokenLocation)
         val destination = Destination.parse(xcp, id)
+                .copy(createdBy = rolesInfo.userName).copy(associatedRoles = rolesInfo.rolesString)
         val seqNo = request.paramAsLong(IF_SEQ_NO, SequenceNumbers.UNASSIGNED_SEQ_NO)
         val primaryTerm = request.paramAsLong(IF_PRIMARY_TERM, SequenceNumbers.UNASSIGNED_PRIMARY_TERM)
         val refreshPolicy = if (request.hasParam(REFRESH)) {

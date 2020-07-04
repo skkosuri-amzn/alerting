@@ -20,10 +20,13 @@ apply plugin: 'jacoco'
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${es_version}"
     compile "org.jetbrains.kotlin:kotlin-stdlib:${kotlin_version}"
+    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${kotlin_version}"
+    
     compile 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.1.1'
     compile "com.cronutils:cron-utils:7.0.5"
     compile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${es_version}"
-    compile files('libs/opendistro-commons-1.0-SNAPSHOT.jar')
+    //todo: pick it from maven.
+    compile files('libs/opendistro-commons-1.6.0.0.jar')
 
     testImplementation "org.elasticsearch.test:framework:${es_version}"
     testImplementation "org.jetbrains.kotlin:kotlin-test:${kotlin_version}"
