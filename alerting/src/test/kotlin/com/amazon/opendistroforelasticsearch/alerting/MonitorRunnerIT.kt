@@ -620,6 +620,8 @@ class MonitorRunnerIT : AlertingRestTestCase() {
         assertEquals(monitor.id, alert.monitorId)
         assertEquals(monitor.name, alert.monitorName)
         assertEquals(monitor.version, alert.monitorVersion)
+        // assertEquals(monitor.createdBy, alert.monitorCreatedBy) fixme:
+        // assertEquals(monitor.associatedRoles, alert.monitorAssociatedroles)
 
         // assert trigger exists for alert
         val trigger = monitor.triggers.single { it.id == alert.triggerId }

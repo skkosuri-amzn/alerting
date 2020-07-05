@@ -28,6 +28,24 @@
         }
       }
     },
+    "monitor_created_by": {
+      "type": "text",
+      "fields": {
+        "keyword": {
+          "type": "keyword",
+          "ignore_above": 256
+        }
+      }
+    },
+    "monitor_associated_roles": {
+      "type": "text",
+      "fields": {
+        "keyword": {
+          "type": "keyword",
+          "ignore_above": 256
+        }
+      }
+    },
     "trigger_id": {
       "type": "keyword"
     },

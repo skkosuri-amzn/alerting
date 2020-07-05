@@ -90,3 +90,6 @@ task ktlintFormat(type: JavaExec, group: "formatting") {
 }
 
 check.dependsOn ktlint
+repositories {
+    mavenCentral()
+}

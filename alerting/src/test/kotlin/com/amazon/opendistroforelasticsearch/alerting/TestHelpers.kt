@@ -53,6 +53,8 @@ import java.time.temporal.ChronoUnit
 
 fun randomMonitor(
     name: String = ESRestTestCase.randomAlphaOfLength(10),
+    createdBy: String = "testAdmin",
+    associatedRoles: String = "role_1,role_2",
     inputs: List<Input> = listOf(SearchInput(emptyList(), SearchSourceBuilder().query(QueryBuilders.matchAllQuery()))),
     schedule: Schedule = IntervalSchedule(interval = 5, unit = ChronoUnit.MINUTES),
     enabled: Boolean = ESTestCase.randomBoolean(),
@@ -63,6 +65,8 @@ fun randomMonitor(
 ): Monitor {
     return Monitor(name = name, enabled = enabled, inputs = inputs, schedule = schedule, triggers = triggers,
             enabledTime = enabledTime, lastUpdateTime = lastUpdateTime,
+            createdBy = createdBy,
+            associatedRoles = associatedRoles,
             uiMetadata = if (withMetadata) mapOf("foo" to "bar") else mapOf())
 }
 

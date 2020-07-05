@@ -23,6 +23,10 @@ dependencies {
     compile 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.1.1'
     compile "com.cronutils:cron-utils:7.0.5"
 
+
+    //todo: pick it from maven.
+    compile files('libs/opendistro-commons-1.8.0.0.jar')
+
     testImplementation "org.elasticsearch.test:framework:${es_version}"
     testImplementation "org.jetbrains.kotlin:kotlin-test:${kotlin_version}"
     testImplementation "org.jetbrains.kotlin:kotlin-test-junit:${kotlin_version}"

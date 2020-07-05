@@ -37,6 +37,8 @@ class DestinationRestApiIT : AlertingRestTestCase() {
         val destination = Destination(
                 type = DestinationType.CHIME,
                 name = "test",
+                createdBy = "testAdmin",
+                associatedRoles = "role_1,role_2",
                 lastUpdateTime = Instant.now(),
                 chime = chime,
                 slack = null,
@@ -67,6 +69,8 @@ class DestinationRestApiIT : AlertingRestTestCase() {
         val destination = Destination(
                 type = DestinationType.SLACK,
                 name = "test",
+                createdBy = "testAdmin",
+                associatedRoles = "role_1,role_2",
                 lastUpdateTime = Instant.now(),
                 chime = null,
                 slack = slack,
@@ -97,6 +101,8 @@ class DestinationRestApiIT : AlertingRestTestCase() {
         val destination = Destination(
                 type = DestinationType.CUSTOM_WEBHOOK,
                 name = "test",
+                createdBy = "testAdmin",
+                associatedRoles = "role_1,role_2",
                 lastUpdateTime = Instant.now(),
                 chime = null,
                 slack = null,
@@ -113,6 +119,8 @@ class DestinationRestApiIT : AlertingRestTestCase() {
         val destination = Destination(
                 type = DestinationType.CUSTOM_WEBHOOK,
                 name = "test",
+                createdBy = "testAdmin",
+                associatedRoles = "role_1,role_2",
                 lastUpdateTime = Instant.now(),
                 chime = null,
                 slack = null,

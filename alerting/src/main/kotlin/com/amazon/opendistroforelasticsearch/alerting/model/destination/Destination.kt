@@ -44,6 +44,8 @@ data class Destination(
     val schemaVersion: Int = NO_SCHEMA_VERSION,
     val type: DestinationType,
     val name: String,
+    val createdBy: String,
+    val associatedRoles: String,
     val lastUpdateTime: Instant,
     val chime: Chime?,
     val slack: Slack?,
@@ -55,6 +57,8 @@ data class Destination(
         if (params.paramAsBoolean("with_type", false)) builder.startObject(DESTINATION)
         builder.field(TYPE_FIELD, type.value)
                 .field(NAME_FIELD, name)
+                .field(CREATEDBY_FIELD, createdBy)
+                .field(ASSOCIATED_ROLES_FIELD, associatedRoles)
                 .field(SCHEMA_VERSION, schemaVersion)
                 .optionalTimeField(LAST_UPDATE_TIME_FIELD, lastUpdateTime)
                 .field(type.value, constructResponseForDestinationType(type))
@@ -70,6 +74,8 @@ data class Destination(
         const val DESTINATION = "destination"
         const val TYPE_FIELD = "type"
         const val NAME_FIELD = "name"
+        const val CREATEDBY_FIELD = "created_by"
+        const val ASSOCIATED_ROLES_FIELD = "associated_roles"
         const val NO_ID = ""
         const val NO_VERSION = 1L
         const val SCHEMA_VERSION = "schema_version"
@@ -87,6 +93,8 @@ data class Destination(
         @Throws(IOException::class)
         fun parse(xcp: XContentParser, id: String = NO_ID, version: Long = NO_VERSION): Destination {
             lateinit var name: String
+            var createdBy: String = ""
+            var associatedRoles = ""
             lateinit var type: String
             var slack: Slack? = null
             var chime: Chime? = null
@@ -101,6 +109,8 @@ data class Destination(
 
                 when (fieldName) {
                     NAME_FIELD -> name = xcp.text()
+                    CREATEDBY_FIELD -> createdBy = xcp.text()
+                    ASSOCIATED_ROLES_FIELD -> associatedRoles = xcp.text()
                     TYPE_FIELD -> {
                         type = xcp.text()
                         val allowedTypes = DestinationType.values().map { it.value }
@@ -134,6 +144,8 @@ data class Destination(
                     schemaVersion,
                     DestinationType.valueOf(type.toUpperCase(Locale.ROOT)),
                     requireNotNull(name) { "Destination name is null" },
+                    createdBy,
+                    associatedRoles,
                     lastUpdateTime ?: Instant.now(),
                     chime,
                     slack,

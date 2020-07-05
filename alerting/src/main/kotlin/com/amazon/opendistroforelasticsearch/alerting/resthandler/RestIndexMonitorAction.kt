@@ -31,6 +31,7 @@ import com.amazon.opendistroforelasticsearch.alerting.util.IF_SEQ_NO
 import com.amazon.opendistroforelasticsearch.alerting.util.IndexUtils
 import com.amazon.opendistroforelasticsearch.alerting.util._PRIMARY_TERM
 import com.amazon.opendistroforelasticsearch.alerting.util._SEQ_NO
+import com.amazon.opendistroforelasticsearch.commons.NodeHelper
 import org.apache.logging.log4j.LogManager
 import org.elasticsearch.action.ActionListener
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse
@@ -116,10 +117,14 @@ class RestIndexMonitorAction(
             throw IllegalArgumentException("Missing monitor ID")
         }
 
+        // Get roles of the user executing this rest action
+        val rolesInfo = NodeHelper().getRolesInfo(client)
+
         // Validate request by parsing JSON to Monitor
         val xcp = request.contentParser()
         ensureExpectedToken(Token.START_OBJECT, xcp.nextToken(), xcp::getTokenLocation)
         val monitor = Monitor.parse(xcp, id).copy(lastUpdateTime = Instant.now())
+                .copy(createdBy = rolesInfo.userName).copy(associatedRoles = rolesInfo.rolesString)
         val seqNo = request.paramAsLong(IF_SEQ_NO, SequenceNumbers.UNASSIGNED_SEQ_NO)
         val primaryTerm = request.paramAsLong(IF_PRIMARY_TERM, SequenceNumbers.UNASSIGNED_PRIMARY_TERM)
         val refreshPolicy = if (request.hasParam(REFRESH)) {
