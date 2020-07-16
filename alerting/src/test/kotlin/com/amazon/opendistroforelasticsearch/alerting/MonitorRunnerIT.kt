@@ -116,11 +116,12 @@ class MonitorRunnerIT : AlertingRestTestCase() {
     }
 
     fun `test execute monitor input error`() {
-        // use a non-existent index to trigger an input error
+        createIndex("foo", Settings.EMPTY)
         val input = SearchInput(indices = listOf("foo"), query = SearchSourceBuilder().query(QueryBuilders.matchAllQuery()))
         val monitor = createMonitor(randomMonitor(inputs = listOf(input),
                 triggers = listOf(randomTrigger(condition = NEVER_RUN))))
-
+        // use a non-existent index to trigger an input error
+        deleteIndex("foo")
         val response = executeMonitor(monitor.id)
 
         val output = entityAsMap(response)
@@ -424,9 +425,10 @@ class MonitorRunnerIT : AlertingRestTestCase() {
         verifyAlert(alerts.single(), monitor, ACTIVE)
     }
 
-    fun `test execute monitor with bad search`() {
+    /*fun `test execute monitor with bad search`() {
         val query = QueryBuilders.matchAllQuery()
         val input = SearchInput(indices = listOf("_#*IllegalIndexCharacters"), query = SearchSourceBuilder().query(query))
+
         val monitor = createMonitor(randomMonitor(inputs = listOf(input), triggers = listOf(randomTrigger(condition = ALWAYS_RUN))))
 
         val response = executeMonitor(monitor.id)
@@ -436,7 +438,7 @@ class MonitorRunnerIT : AlertingRestTestCase() {
         @Suppress("UNCHECKED_CAST")
         val inputResults = output.stringMap("input_results")
         assertTrue("Missing error message from a bad query", (inputResults?.get("error") as String).isNotEmpty())
-    }
+    }*/
 
     fun `test execute monitor non-dryrun`() {
         val monitor = createMonitor(

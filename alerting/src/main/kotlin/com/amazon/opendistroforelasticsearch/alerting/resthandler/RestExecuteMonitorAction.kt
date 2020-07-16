@@ -61,6 +61,8 @@ class RestExecuteMonitorAction(
     }
 
     override fun prepareRequest(request: RestRequest, client: NodeClient): RestChannelConsumer {
+        log.debug("${request.method()} ${AlertingPlugin.MONITOR_BASE_URI}/_execute")
+
         return RestChannelConsumer { channel ->
             val dryrun = request.paramAsBoolean("dryrun", false)
             val requestEnd = request.paramAsTime("period_end", TimeValue(Instant.now().toEpochMilli()))

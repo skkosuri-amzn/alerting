@@ -41,6 +41,10 @@ data class SearchInput(val indices: List<String>, val query: SearchSourceBuilder
         return SEARCH_FIELD
     }
 
+    fun indices(): List<String> {
+        return indices
+    }
+
     companion object {
         const val INDICES_FIELD = "indices"
         const val QUERY_FIELD = "query"

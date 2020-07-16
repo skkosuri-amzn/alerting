@@ -25,13 +25,18 @@ import com.amazon.opendistroforelasticsearch.alerting.util.REFRESH
 import com.amazon.opendistroforelasticsearch.alerting.util._ID
 import com.amazon.opendistroforelasticsearch.alerting.util._VERSION
 import com.amazon.opendistroforelasticsearch.alerting.AlertingPlugin
+import com.amazon.opendistroforelasticsearch.alerting.core.model.SearchInput
 import com.amazon.opendistroforelasticsearch.alerting.settings.AlertingSettings.Companion.MAX_ACTION_THROTTLE_VALUE
 import com.amazon.opendistroforelasticsearch.alerting.util.IF_PRIMARY_TERM
 import com.amazon.opendistroforelasticsearch.alerting.util.IF_SEQ_NO
 import com.amazon.opendistroforelasticsearch.alerting.util.IndexUtils
 import com.amazon.opendistroforelasticsearch.alerting.util._PRIMARY_TERM
 import com.amazon.opendistroforelasticsearch.alerting.util._SEQ_NO
+import com.amazon.opendistroforelasticsearch.commons.ConfigConstants
+
 import com.amazon.opendistroforelasticsearch.commons.NodeHelper
+import com.amazon.opendistroforelasticsearch.commons.authinfo.AuthInfoRequest
+import com.amazon.opendistroforelasticsearch.commons.authinfo.AuthInfoResponse
 import org.apache.logging.log4j.LogManager
 import org.elasticsearch.action.ActionListener
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse
@@ -43,6 +48,7 @@ import org.elasticsearch.action.search.SearchRequest
 import org.elasticsearch.action.search.SearchResponse
 import org.elasticsearch.action.support.WriteRequest
 import org.elasticsearch.action.support.master.AcknowledgedResponse
+import org.elasticsearch.client.RestClient
 import org.elasticsearch.client.node.NodeClient
 import org.elasticsearch.cluster.service.ClusterService
 import org.elasticsearch.common.settings.Settings
@@ -79,11 +85,14 @@ private val log = LogManager.getLogger(RestIndexMonitorAction::class.java)
 class RestIndexMonitorAction(
     settings: Settings,
     jobIndices: ScheduledJobIndices,
-    clusterService: ClusterService
+    clusterService: ClusterService,
+    restClient: RestClient
 ) : BaseRestHandler() {
 
     private var scheduledJobIndices: ScheduledJobIndices
     private val clusterService: ClusterService
+    private val restClient: RestClient
+    private val settings: Settings
     @Volatile private var maxMonitors = ALERTING_MAX_MONITORS.get(settings)
     @Volatile private var requestTimeout = REQUEST_TIMEOUT.get(settings)
     @Volatile private var indexTimeout = INDEX_TIMEOUT.get(settings)
@@ -97,6 +106,8 @@ class RestIndexMonitorAction(
         clusterService.clusterSettings.addSettingsUpdateConsumer(INDEX_TIMEOUT) { indexTimeout = it }
         clusterService.clusterSettings.addSettingsUpdateConsumer(MAX_ACTION_THROTTLE_VALUE) { maxActionThrottle = it }
         this.clusterService = clusterService
+        this.restClient = restClient
+        this.settings = settings
     }
 
     override fun getName(): String {
@@ -112,19 +123,25 @@ class RestIndexMonitorAction(
 
     @Throws(IOException::class)
     override fun prepareRequest(request: RestRequest, client: NodeClient): RestChannelConsumer {
+        log.debug("${request.method()} ${AlertingPlugin.MONITOR_BASE_URI}")
+
         val id = request.param("monitorID", Monitor.NO_ID)
         if (request.method() == PUT && Monitor.NO_ID == id) {
             throw IllegalArgumentException("Missing monitor ID")
         }
 
         // Get roles of the user executing this rest action
-        val rolesInfo = NodeHelper().getRolesInfo(client)
-
+        // val rolesInfo = NodeHelper().getRolesInfo(client)
+        var authInfo = AuthInfoResponse()
+        if (request.headers != null) {
+            val authInfoRequest = AuthInfoRequest(request.headers[ConfigConstants.AUTHORIZATION])
+            authInfo = NodeHelper().getAuthInfo(authInfoRequest, restClient, settings)
+        }
         // Validate request by parsing JSON to Monitor
         val xcp = request.contentParser()
         ensureExpectedToken(Token.START_OBJECT, xcp.nextToken(), xcp::getTokenLocation)
         val monitor = Monitor.parse(xcp, id).copy(lastUpdateTime = Instant.now())
-                .copy(createdBy = rolesInfo.userName).copy(associatedRoles = rolesInfo.rolesString)
+                .copy(createdBy = authInfo.userName).copy(associatedRoles = authInfo.rolesString)
         val seqNo = request.paramAsLong(IF_SEQ_NO, SequenceNumbers.UNASSIGNED_SEQ_NO)
         val primaryTerm = request.paramAsLong(IF_PRIMARY_TERM, SequenceNumbers.UNASSIGNED_PRIMARY_TERM)
         val refreshPolicy = if (request.hasParam(REFRESH)) {
@@ -197,9 +214,10 @@ class RestIndexMonitorAction(
             if (totalHits != null && totalHits >= maxMonitors) {
                 log.error("This request would create more than the allowed monitors [$maxMonitors].")
                 onFailure(IllegalArgumentException("This request would create more than the allowed monitors [$maxMonitors]."))
-            } else {
-                indexMonitor()
+                return
             }
+            hasReadPermissions()
+            indexMonitor()
         }
 
         private fun onCreateMappingsResponse(response: CreateIndexResponse) {
@@ -237,6 +255,21 @@ class RestIndexMonitorAction(
                         .setIfPrimaryTerm(primaryTerm)
                         .timeout(indexTimeout)
             client.index(indexRequest, indexMonitorResponse())
+        }
+
+        /**
+         *  Check if user has permissions to read the configured indices on the monitor.
+         */
+        private fun hasReadPermissions() {
+            val searchInputs = newMonitor.inputs.filter { it.name() == SearchInput.SEARCH_FIELD }
+            searchInputs.forEach {
+                val searchInput = it as SearchInput
+                if (searchInput.indices.isEmpty())
+                    return
+                val searchRequest = SearchRequest().indices(*searchInput.indices.toTypedArray())
+                        .source(SearchSourceBuilder.searchSource().size(1).query(QueryBuilders.matchAllQuery()))
+                client.search(searchRequest).actionGet()
+            }
         }
 
         private fun updateMonitor() {

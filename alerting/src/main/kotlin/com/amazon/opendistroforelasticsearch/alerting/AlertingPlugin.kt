@@ -35,9 +35,13 @@ import com.amazon.opendistroforelasticsearch.alerting.resthandler.RestIndexMonit
 import com.amazon.opendistroforelasticsearch.alerting.resthandler.RestSearchMonitorAction
 import com.amazon.opendistroforelasticsearch.alerting.script.TriggerScript
 import com.amazon.opendistroforelasticsearch.alerting.settings.AlertingSettings
+import com.amazon.opendistroforelasticsearch.commons.rest.RestHelper
+
 import org.elasticsearch.action.ActionRequest
 import org.elasticsearch.action.ActionResponse
 import org.elasticsearch.client.Client
+import org.elasticsearch.client.RestClient
+
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver
 import org.elasticsearch.cluster.node.DiscoveryNodes
 import org.elasticsearch.cluster.service.ClusterService
@@ -92,6 +96,7 @@ internal class AlertingPlugin : PainlessExtension, ActionPlugin, ScriptPlugin, P
     lateinit var threadPool: ThreadPool
     lateinit var alertIndices: AlertIndices
     lateinit var clusterService: ClusterService
+    lateinit var restClient: RestClient
 
     override fun getRestHandlers(
         settings: Settings,
@@ -104,7 +109,7 @@ internal class AlertingPlugin : PainlessExtension, ActionPlugin, ScriptPlugin, P
     ): List<RestHandler> {
         return listOf(RestGetMonitorAction(),
                 RestDeleteMonitorAction(),
-                RestIndexMonitorAction(settings, scheduledJobIndices, clusterService),
+                RestIndexMonitorAction(settings, scheduledJobIndices, clusterService, restClient),
                 RestSearchMonitorAction(),
                 RestExecuteMonitorAction(settings, runner),
                 RestAcknowledgeAlertAction(),
@@ -142,6 +147,7 @@ internal class AlertingPlugin : PainlessExtension, ActionPlugin, ScriptPlugin, P
         sweeper = JobSweeper(environment.settings(), client, clusterService, threadPool, xContentRegistry, scheduler, ALERTING_JOB_TYPES)
         this.threadPool = threadPool
         this.clusterService = clusterService
+        this.restClient = RestHelper(settings).createRestClientBuilder().build()
         return listOf(sweeper, scheduler, runner, scheduledJobIndices)
     }
 

@@ -91,6 +91,8 @@ class RestIndexDestinationAction(
 
     @Throws(IOException::class)
     override fun prepareRequest(request: RestRequest, client: NodeClient): BaseRestHandler.RestChannelConsumer {
+        log.debug("${request.method()} ${AlertingPlugin.DESTINATION_BASE_URI}")
+
         val id = request.param("destinationID", Destination.NO_ID)
         if (request.method() == RestRequest.Method.PUT && Destination.NO_ID == id) {
             throw IllegalArgumentException("Missing destination ID")

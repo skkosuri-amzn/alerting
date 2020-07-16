@@ -18,6 +18,8 @@ package com.amazon.opendistroforelasticsearch.alerting.resthandler
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob
 import com.amazon.opendistroforelasticsearch.alerting.AlertingPlugin
 import com.amazon.opendistroforelasticsearch.alerting.util.REFRESH
+import org.apache.logging.log4j.LogManager
+import org.apache.logging.log4j.Logger
 import org.elasticsearch.action.delete.DeleteRequest
 import org.elasticsearch.action.support.WriteRequest
 import org.elasticsearch.client.node.NodeClient
@@ -28,6 +30,7 @@ import org.elasticsearch.rest.RestRequest
 import org.elasticsearch.rest.action.RestStatusToXContentListener
 import java.io.IOException
 
+private val log: Logger = LogManager.getLogger(RestDeleteDestinationAction::class.java)
 /**
  * This class consists of the REST handler to delete destination.
  */
@@ -45,6 +48,8 @@ class RestDeleteDestinationAction : BaseRestHandler() {
 
     @Throws(IOException::class)
     override fun prepareRequest(request: RestRequest, client: NodeClient): RestChannelConsumer {
+        log.debug("${request.method()} ${AlertingPlugin.DESTINATION_BASE_URI}/{destinationID}")
+
         val destinationId = request.param("destinationID")
         val refreshPolicy = WriteRequest.RefreshPolicy.parse(request.param(REFRESH, WriteRequest.RefreshPolicy.IMMEDIATE.value))
 
