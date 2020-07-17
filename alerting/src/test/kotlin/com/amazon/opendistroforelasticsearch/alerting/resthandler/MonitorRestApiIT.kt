@@ -23,6 +23,7 @@ import com.amazon.opendistroforelasticsearch.alerting.randomAlert
 import com.amazon.opendistroforelasticsearch.alerting.randomMonitor
 import com.amazon.opendistroforelasticsearch.alerting.settings.AlertingSettings
 import com.amazon.opendistroforelasticsearch.alerting.ALERTING_BASE_URI
+import com.amazon.opendistroforelasticsearch.alerting.ALWAYS_RUN
 import com.amazon.opendistroforelasticsearch.alerting.randomTrigger
 import com.amazon.opendistroforelasticsearch.alerting.core.model.CronSchedule
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob
@@ -141,6 +142,34 @@ class MonitorRestApiIT : AlertingRestTestCase() {
         } catch (e: ResponseException) {
             assertEquals("Unexpected status", RestStatus.METHOD_NOT_ALLOWED, e.response.restStatus())
         }
+    }
+
+    fun `test creating a monitor with bad index`() {
+        val query = QueryBuilders.matchAllQuery()
+        val input = SearchInput(indices = listOf("_#*IllegalIndexCharacters"), query = SearchSourceBuilder().query(query))
+        val monitor = randomMonitor(inputs = listOf(input), triggers = listOf(randomTrigger(condition = ALWAYS_RUN)))
+        var ex: ResponseException? = null
+        try {
+            client().makeRequest("POST", ALERTING_BASE_URI, emptyMap(), monitor.toHttpEntity())
+        } catch (e: ResponseException) {
+            ex = e
+        }
+        assertEquals("Expected status", RestStatus.BAD_REQUEST, ex?.response?.restStatus())
+        assertEquals("Expected status", true, ex?.message?.contains("Invalid index name"))
+    }
+
+    fun `test creating a monitor with index not present`() {
+        val query = QueryBuilders.matchAllQuery()
+        val input = SearchInput(indices = listOf("foo"), query = SearchSourceBuilder().query(query))
+        val monitor = randomMonitor(inputs = listOf(input), triggers = listOf(randomTrigger(condition = ALWAYS_RUN)))
+        var ex: ResponseException? = null
+        try {
+            client().makeRequest("POST", ALERTING_BASE_URI, emptyMap(), monitor.toHttpEntity())
+        } catch (e: ResponseException) {
+            ex = e
+        }
+        assertEquals("Expected status", RestStatus.NOT_FOUND, ex?.response?.restStatus())
+        assertEquals("Expected status", true, ex?.message?.contains("no such index"))
     }
 
     @Throws(Exception::class)

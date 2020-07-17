@@ -14,29 +14,27 @@
  */
 package com.amazon.opendistroforelasticsearch.alerting.resthandler
 
+import com.amazon.opendistroforelasticsearch.alerting.AlertingPlugin
 import com.amazon.opendistroforelasticsearch.alerting.core.ScheduledJobIndices
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob.Companion.SCHEDULED_JOBS_INDEX
+import com.amazon.opendistroforelasticsearch.alerting.core.model.SearchInput
 import com.amazon.opendistroforelasticsearch.alerting.model.Monitor
 import com.amazon.opendistroforelasticsearch.alerting.settings.AlertingSettings.Companion.ALERTING_MAX_MONITORS
 import com.amazon.opendistroforelasticsearch.alerting.settings.AlertingSettings.Companion.INDEX_TIMEOUT
-import com.amazon.opendistroforelasticsearch.alerting.settings.AlertingSettings.Companion.REQUEST_TIMEOUT
-import com.amazon.opendistroforelasticsearch.alerting.util.REFRESH
-import com.amazon.opendistroforelasticsearch.alerting.util._ID
-import com.amazon.opendistroforelasticsearch.alerting.util._VERSION
-import com.amazon.opendistroforelasticsearch.alerting.AlertingPlugin
-import com.amazon.opendistroforelasticsearch.alerting.core.model.SearchInput
 import com.amazon.opendistroforelasticsearch.alerting.settings.AlertingSettings.Companion.MAX_ACTION_THROTTLE_VALUE
+import com.amazon.opendistroforelasticsearch.alerting.settings.AlertingSettings.Companion.REQUEST_TIMEOUT
 import com.amazon.opendistroforelasticsearch.alerting.util.IF_PRIMARY_TERM
 import com.amazon.opendistroforelasticsearch.alerting.util.IF_SEQ_NO
 import com.amazon.opendistroforelasticsearch.alerting.util.IndexUtils
+import com.amazon.opendistroforelasticsearch.alerting.util.REFRESH
+import com.amazon.opendistroforelasticsearch.alerting.util._ID
 import com.amazon.opendistroforelasticsearch.alerting.util._PRIMARY_TERM
 import com.amazon.opendistroforelasticsearch.alerting.util._SEQ_NO
+import com.amazon.opendistroforelasticsearch.alerting.util._VERSION
 import com.amazon.opendistroforelasticsearch.commons.ConfigConstants
-
-import com.amazon.opendistroforelasticsearch.commons.NodeHelper
 import com.amazon.opendistroforelasticsearch.commons.authinfo.AuthInfoRequest
-import com.amazon.opendistroforelasticsearch.commons.authinfo.AuthInfoResponse
+import com.amazon.opendistroforelasticsearch.commons.rest.RestHelper
 import org.apache.logging.log4j.LogManager
 import org.elasticsearch.action.ActionListener
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse
@@ -131,12 +129,9 @@ class RestIndexMonitorAction(
         }
 
         // Get roles of the user executing this rest action
-        // val rolesInfo = NodeHelper().getRolesInfo(client)
-        var authInfo = AuthInfoResponse()
-        if (request.headers != null) {
-            val authInfoRequest = AuthInfoRequest(request.headers[ConfigConstants.AUTHORIZATION])
-            authInfo = NodeHelper().getAuthInfo(authInfoRequest, restClient, settings)
-        }
+        val authInfoRequest = AuthInfoRequest(request.headers[ConfigConstants.AUTHORIZATION])
+        var authInfo = RestHelper(settings).getAuthInfo(restClient, authInfoRequest)
+
         // Validate request by parsing JSON to Monitor
         val xcp = request.contentParser()
         ensureExpectedToken(Token.START_OBJECT, xcp.nextToken(), xcp::getTokenLocation)

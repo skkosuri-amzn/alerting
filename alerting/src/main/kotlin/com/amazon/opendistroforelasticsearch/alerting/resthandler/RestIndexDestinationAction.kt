@@ -15,21 +15,23 @@
 
 package com.amazon.opendistroforelasticsearch.alerting.resthandler
 
+import com.amazon.opendistroforelasticsearch.alerting.AlertingPlugin
 import com.amazon.opendistroforelasticsearch.alerting.core.ScheduledJobIndices
-import com.amazon.opendistroforelasticsearch.alerting.model.destination.Destination
-import com.amazon.opendistroforelasticsearch.alerting.settings.AlertingSettings.Companion.INDEX_TIMEOUT
-import com.amazon.opendistroforelasticsearch.alerting.util.REFRESH
-import com.amazon.opendistroforelasticsearch.alerting.util._ID
-import com.amazon.opendistroforelasticsearch.alerting.util._VERSION
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob
 import com.amazon.opendistroforelasticsearch.alerting.core.model.ScheduledJob.Companion.SCHEDULED_JOBS_INDEX
-import com.amazon.opendistroforelasticsearch.alerting.AlertingPlugin
+import com.amazon.opendistroforelasticsearch.alerting.model.destination.Destination
+import com.amazon.opendistroforelasticsearch.alerting.settings.AlertingSettings.Companion.INDEX_TIMEOUT
 import com.amazon.opendistroforelasticsearch.alerting.util.IF_PRIMARY_TERM
 import com.amazon.opendistroforelasticsearch.alerting.util.IF_SEQ_NO
 import com.amazon.opendistroforelasticsearch.alerting.util.IndexUtils
+import com.amazon.opendistroforelasticsearch.alerting.util.REFRESH
+import com.amazon.opendistroforelasticsearch.alerting.util._ID
 import com.amazon.opendistroforelasticsearch.alerting.util._PRIMARY_TERM
 import com.amazon.opendistroforelasticsearch.alerting.util._SEQ_NO
-import com.amazon.opendistroforelasticsearch.commons.NodeHelper
+import com.amazon.opendistroforelasticsearch.alerting.util._VERSION
+import com.amazon.opendistroforelasticsearch.commons.ConfigConstants
+import com.amazon.opendistroforelasticsearch.commons.authinfo.AuthInfoRequest
+import com.amazon.opendistroforelasticsearch.commons.rest.RestHelper
 import org.apache.logging.log4j.LogManager
 import org.elasticsearch.action.ActionListener
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse
@@ -39,6 +41,7 @@ import org.elasticsearch.action.index.IndexRequest
 import org.elasticsearch.action.index.IndexResponse
 import org.elasticsearch.action.support.WriteRequest
 import org.elasticsearch.action.support.master.AcknowledgedResponse
+import org.elasticsearch.client.RestClient
 import org.elasticsearch.client.node.NodeClient
 import org.elasticsearch.cluster.service.ClusterService
 import org.elasticsearch.common.settings.Settings
@@ -65,10 +68,14 @@ private val log = LogManager.getLogger(RestIndexDestinationAction::class.java)
 class RestIndexDestinationAction(
     settings: Settings,
     jobIndices: ScheduledJobIndices,
-    clusterService: ClusterService
+    clusterService: ClusterService,
+    restClient: RestClient
 ) : BaseRestHandler() {
     private var scheduledJobIndices: ScheduledJobIndices
     private val clusterService: ClusterService
+    private val restClient: RestClient
+    private val settings: Settings
+
     @Volatile private var indexTimeout = INDEX_TIMEOUT.get(settings)
 
     init {
@@ -76,6 +83,8 @@ class RestIndexDestinationAction(
 
         clusterService.clusterSettings.addSettingsUpdateConsumer(INDEX_TIMEOUT) { indexTimeout = it }
         this.clusterService = clusterService
+        this.restClient = restClient
+        this.settings = settings
     }
 
     override fun getName(): String {
@@ -99,13 +108,14 @@ class RestIndexDestinationAction(
         }
 
         // Get roles of the user executing this rest action
-        val rolesInfo = NodeHelper().getRolesInfo(client)
+        val authInfoRequest = AuthInfoRequest(request.headers[ConfigConstants.AUTHORIZATION])
+        var authInfo = RestHelper(settings).getAuthInfo(restClient, authInfoRequest)
 
         // Validate request by parsing JSON to Destination
         val xcp = request.contentParser()
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, xcp.nextToken(), xcp::getTokenLocation)
         val destination = Destination.parse(xcp, id)
-                .copy(createdBy = rolesInfo.userName).copy(associatedRoles = rolesInfo.rolesString)
+                .copy(createdBy = authInfo.userName).copy(associatedRoles = authInfo.rolesString)
         val seqNo = request.paramAsLong(IF_SEQ_NO, SequenceNumbers.UNASSIGNED_SEQ_NO)
         val primaryTerm = request.paramAsLong(IF_PRIMARY_TERM, SequenceNumbers.UNASSIGNED_PRIMARY_TERM)
         val refreshPolicy = if (request.hasParam(REFRESH)) {
